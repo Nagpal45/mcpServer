@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { fileURLToPath } from "url";
 const server = new McpServer({
     name: "mcpServer",
     version: "1.0.0",
@@ -14,7 +17,9 @@ server.tool("add-numbers", "Add two numbers", {
     b: z.number().describe("Second number"),
 }, ({ a, b }) => {
     return {
-        content: [{ type: "text", text: `The sum of ${a} and ${b} is ${a + b}.` }],
+        content: [
+            { type: "text", text: `The sum of ${a} and ${b} is ${a + b}.` },
+        ],
     };
 });
 server.tool("get_github_repos", "Get github repositories from the given username", {
@@ -22,9 +27,9 @@ server.tool("get_github_repos", "Get github repositories from the given username
 }, async ({ username }) => {
     const res = await fetch(`https://api.github.com/users/${username}/repos`, {
         headers: {
-            'User-Agent': 'MCP-Server',
-            'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`
-        }
+            "User-Agent": "MCP-Server",
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        },
     });
     if (!res.ok) {
         throw new Error(`Failed to fetch repositories for user ${username}: ${res.statusText}`);
@@ -32,7 +37,30 @@ server.tool("get_github_repos", "Get github repositories from the given username
     const repos = await res.json();
     const repoNames = repos.map((repo, i) => `${i + 1}. ${repo.name}`);
     return {
-        content: [{ type: "text", text: `Repositories for user ${username}: \n\n${repoNames.join("\n")}` }],
+        content: [
+            {
+                type: "text",
+                text: `Repositories for user ${username}: \n\n${repoNames.join("\n")}`,
+            },
+        ],
+    };
+});
+server.resource("apartment-rules", "rules://all", {
+    description: "A resource containing all apartment rules and regulations.",
+    mimeType: "text/plain",
+}, async (uri) => {
+    const uriString = uri.toString();
+    const __filePath = fileURLToPath(import.meta.url);
+    const __dirName = path.dirname(__filePath);
+    const rules = await fs.readFile(path.resolve(__dirName, "apartment-rules.txt"), "utf-8");
+    return {
+        contents: [
+            {
+                uri: uriString,
+                mimeType: "text/plain",
+                text: rules,
+            },
+        ],
     };
 });
 async function main() {
