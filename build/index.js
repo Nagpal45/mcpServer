@@ -63,6 +63,21 @@ server.resource("apartment-rules", "rules://all", {
         ],
     };
 });
+server.prompt("explain-sql", "Explain SQL Query", {
+    sql: z.string().describe("The SQL query to be explained"),
+}, ({ sql }) => {
+    return {
+        messages: [
+            {
+                role: "user",
+                content: {
+                    type: "text",
+                    text: `Give me a detailed explanation of the following SQL query in plain English: ${sql}. Make it very detailed and specific for beginner to understand`,
+                },
+            },
+        ],
+    };
+});
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
