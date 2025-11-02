@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "mcpServer": {
+        "command": "node",
+        "args": ["./build/index.js"],
+        "transport": "stdio"
+    }
+  }
+}
