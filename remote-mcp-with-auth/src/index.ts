@@ -49,12 +49,12 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
   }
 
   private async getProjectList(): Promise<string[]> {
-    const listData = await this.kv.get("project:list");
+    const listData = await this.kv.get(`project:user-${this.props!.login}:list`);
     return listData ? JSON.parse(listData) : [];
   }
 
   private async getTodoList(projectId: string): Promise<string[]> {
-    const listData = await this.kv.get(`project:${projectId}:todos`);
+    const listData = await this.kv.get(`project:${projectId}:user-${this.props!.login}:todos`);
     return listData ? JSON.parse(listData) : [];
   }
 
@@ -63,7 +63,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
     const todos: Todo[] = [];
 
     for (const todoId of todoIds) {
-      const todoData = await this.kv.get(`todo:${todoId}`);
+      const todoData = await this.kv.get(`todo:${todoId}:user-${this.props!.login}`);
       if (todoData) {
         todos.push(JSON.parse(todoData));
       }
@@ -92,11 +92,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             updatedAt: new Date().toISOString(),
           };
 
-          await this.kv.put(`project:${projectId}`, JSON.stringify(newProject));
+          await this.kv.put(`project:${projectId}:user-${this.props!.login}`, JSON.stringify(newProject));
 
           const projectList = await this.getProjectList();
           projectList.push(projectId);
-          await this.kv.put("project:list", JSON.stringify(projectList));
+          await this.kv.put(`project:user-${this.props!.login}:list`, JSON.stringify(projectList));
 
           return {
             content: [{ type: "text", text: JSON.stringify(newProject, null, 2) }],
@@ -109,7 +109,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
         const projects: Project[] = [];
 
         for (const projectId of projectList) {
-          const projectData = await this.kv.get(`project:${projectId}`);
+          const projectData = await this.kv.get(`project:${projectId}:user-${this.props!.login}`);
           if (projectData) {
             projects.push(JSON.parse(projectData));
           }
@@ -127,7 +127,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           projectId: z.string().describe("ID of the project to retrieve"),
         },
         async ({ projectId }) => {
-          const projectData = await this.kv.get(`project:${projectId}`);
+          const projectData = await this.kv.get(`project:${projectId}:user-${this.props!.login}`);
           if (!projectData) {
             throw new Error(`Project with ID ${projectId} does not exist.`);
           }
@@ -153,22 +153,22 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           projectId: z.string().describe("ID of the project to delete"),
         },
         async ({ projectId }) => {
-          const projectData = await this.kv.get(`project:${projectId}`);
+          const projectData = await this.kv.get(`project:${projectId}:user-${this.props!.login}`);
           if (!projectData) {
             throw new Error(`Project with ID ${projectId} does not exist.`);
           }
 
           const todoIds = await this.getTodoList(projectId);
           for (const todoId of todoIds) {
-            await this.kv.delete(`todo:${todoId}`);
+            await this.kv.delete(`todo:${todoId}:user-${this.props!.login}`);
           }
 
-          await this.kv.delete(`project:${projectId}`);
-          await this.kv.delete(`project:${projectId}:todos`);
+          await this.kv.delete(`project:${projectId}:user-${this.props!.login}`);
+          await this.kv.delete(`project:${projectId}:user-${this.props!.login}:todos`);
 
           let projectList = await this.getProjectList();
           projectList = projectList.filter((id) => id !== projectId);
-          await this.kv.put("project:list", JSON.stringify(projectList));
+          await this.kv.put(`project:user-${this.props!.login}:list`, JSON.stringify(projectList));
 
           return {
             content: [
@@ -191,7 +191,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           priority: z.enum(["low", "medium", "high"]).optional().describe("Priority of the todo item"),
         },
         async ({ projectId, title, description, priority }) => {
-          const projectData = await this.kv.get(`project:${projectId}`);
+          const projectData = await this.kv.get(`project:${projectId}:user-${this.props!.login}`);
           if (!projectData) {
             throw new Error(`Project with ID ${projectId} does not exist.`);
           }
@@ -209,11 +209,11 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
             updatedAt: new Date().toISOString(),
           };
 
-          await this.kv.put(`todo:${todoId}`, JSON.stringify(newTodo));
+          await this.kv.put(`todo:${todoId}:user-${this.props!.login}`, JSON.stringify(newTodo));
 
           const todoList = await this.getTodoList(projectId);
           todoList.push(todoId);
-          await this.kv.put(`project:${projectId}:todos`, JSON.stringify(todoList));
+          await this.kv.put(`project:${projectId}:todos:user-${this.props!.login}`, JSON.stringify(todoList));
 
           return {
             content: [{ type: "text", text: JSON.stringify(newTodo, null, 2) }],
@@ -232,7 +232,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           priority: z.enum(["low", "medium", "high"]).optional().describe("Updated priority of the todo item"),
         },
         async ({ todoId, title, description, status, priority }) => {
-          const todoData = await this.kv.get(`todo:${todoId}`);
+          const todoData = await this.kv.get(`todo:${todoId}:user-${this.props!.login}`);
           if (!todoData) {
             throw new Error(`Todo with ID ${todoId} does not exist.`);
           }
@@ -245,7 +245,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           if (priority !== undefined) todo.priority = priority;
           todo.updatedAt = new Date().toISOString();
 
-          await this.kv.put(`todo:${todoId}`, JSON.stringify(todo));
+          await this.kv.put(`todo:${todoId}:user-${this.props!.login}`, JSON.stringify(todo));
 
           return {
             content: [{ type: "text", text: JSON.stringify(todo, null, 2) }],
@@ -260,7 +260,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           todoId: z.string().describe("ID of the todo item to retrieve"),
         },
         async ({ todoId }) => {
-          const todoData = await this.kv.get(`todo:${todoId}`);
+          const todoData = await this.kv.get(`todo:${todoId}:user-${this.props!.login}`);
           if (!todoData) {
             throw new Error(`Todo with ID ${todoId} does not exist.`);
           }
@@ -280,17 +280,17 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           todoId: z.string().describe("ID of the todo item to delete"),
         },
         async ({ todoId }) => {
-          const todoData = await this.kv.get(`todo:${todoId}`);
+          const todoData = await this.kv.get(`todo:${todoId}:user-${this.props!.login}`);
           if (!todoData) {
             throw new Error(`Todo with ID ${todoId} does not exist.`);
           }
 
           const todo: Todo = JSON.parse(todoData);
-          await this.kv.delete(`todo:${todoId}`);
+          await this.kv.delete(`todo:${todoId}:user-${this.props!.login}`);
 
           let todoList = await this.getTodoList(todo.projectId);
           todoList = todoList.filter((id) => id !== todoId);
-          await this.kv.put(`project:${todo.projectId}:todos`, JSON.stringify(todoList));
+          await this.kv.put(`project:${todo.projectId}:todos:user-${this.props!.login}`, JSON.stringify(todoList));
 
           return {
             content: [{ type: "text", text: `Todo with ID ${todoId} has been deleted.` }],
@@ -306,7 +306,7 @@ export class MyMCP extends McpAgent<Env, Record<string, never>, Props> {
           status: z.enum(["pending", "in-progress", "completed"]).optional().describe("Filter todos by status"),
         },
         async ({ projectId, status }) => {
-          const projectData = await this.kv.get(`project:${projectId}`);
+          const projectData = await this.kv.get(`project:${projectId}:user-${this.props!.login}`);
           if (!projectData) {
             throw new Error(`Project with ID ${projectId} does not exist.`);
           }
