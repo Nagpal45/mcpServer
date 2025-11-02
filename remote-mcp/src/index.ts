@@ -27,6 +27,20 @@ export class MyMCP extends McpAgent {
     version: "1.0.0",
   });
 
+  private get kv(): KVNamespace {
+    return (this.env as Env).PROJECT_PLANNER_STORE;
+  }
+
+  private async getProjectList(): Promise<string[]> {
+      const listData = await this.kv.get("project:list");
+      return listData ? JSON.parse(listData) : [];
+  }
+
+  private async getTodoList(projectId: string): Promise<string[]> {
+      const listData = await this.kv.get(`project:${projectId}:todos`);
+      return listData ? JSON.parse(listData) : [];
+  }
+
   async init() {
     this.server.tool(
       "Create Project",
@@ -36,13 +50,24 @@ export class MyMCP extends McpAgent {
         description: z.string().describe("Project Description"),
       },
       async ({ name, description }) => {
+        const projectId = crypto.randomUUID();
+
         const newProject: Project = {
-          id: crypto.randomUUID(),
+          id: projectId,
           name,
           description,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+
+        await this.kv.put(
+          `project:${projectId}`,
+          JSON.stringify(newProject)
+        );
+
+        const projectList = await this.getProjectList();
+        projectList.push(projectId);
+        await this.kv.put("project:list", JSON.stringify(projectList));
 
         return {
           content: [
