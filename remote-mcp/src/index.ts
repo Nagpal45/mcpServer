@@ -88,51 +88,90 @@ export class MyMCP extends McpAgent {
       }
     );
 
-    this.server.tool("list_projects", "Lists all existing projects.", {}, async () => {
-      const projectList = await this.getProjectList();
-      const projects: Project[] = [];
-      
-      for (const projectId of projectList) {
-        const projectData = await this.kv.get(`project:${projectId}`);
-        if (projectData) {
-          projects.push(JSON.parse(projectData));
+    this.server.tool(
+      "list_projects",
+      "Lists all existing projects.",
+      {},
+      async () => {
+        const projectList = await this.getProjectList();
+        const projects: Project[] = [];
+
+        for (const projectId of projectList) {
+          const projectData = await this.kv.get(`project:${projectId}`);
+          if (projectData) {
+            projects.push(JSON.parse(projectData));
+          }
         }
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(projects, null, 2) }],
+        };
       }
-
-      return {
-        content: [
-          { type: "text", text: JSON.stringify(projects, null, 2) },
-        ],
-      };
-    });
-
-    this.server.tool("get_project", "Retrieves details of a specific project by ID.", {
-      projectId: z.string().describe("ID of the project to retrieve"),
-    }, async ({ projectId }) => {
-      const projectData = await this.kv.get(`project:${projectId}`);
-      if (!projectData) {
-        throw new Error(`Project with ID ${projectId} does not exist.`);
-      }
-
-      const project: Project = JSON.parse(projectData);
-      const todos = await this.getTodosByProject(projectId);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              { project, todos },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    });
+    );
 
     this.server.tool(
-      "add_todo",
+      "get_project",
+      "Retrieves details of a specific project by ID.",
+      {
+        projectId: z.string().describe("ID of the project to retrieve"),
+      },
+      async ({ projectId }) => {
+        const projectData = await this.kv.get(`project:${projectId}`);
+        if (!projectData) {
+          throw new Error(`Project with ID ${projectId} does not exist.`);
+        }
+
+        const project: Project = JSON.parse(projectData);
+        const todos = await this.getTodosByProject(projectId);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ project, todos }, null, 2),
+            },
+          ],
+        };
+      }
+    );
+
+    this.server.tool(
+      "delete_project",
+      "Deletes a project and all its associated todo items.",
+      {
+        projectId: z.string().describe("ID of the project to delete"),
+      },
+      async ({ projectId }) => {
+        const projectData = await this.kv.get(`project:${projectId}`);
+        if (!projectData) {
+          throw new Error(`Project with ID ${projectId} does not exist.`);
+        }
+
+        const todoIds = await this.getTodoList(projectId);
+        for (const todoId of todoIds) {
+          await this.kv.delete(`todo:${todoId}`);
+        }
+
+        await this.kv.delete(`project:${projectId}`);
+        await this.kv.delete(`project:${projectId}:todos`);
+
+        let projectList = await this.getProjectList();
+        projectList = projectList.filter((id) => id !== projectId);
+        await this.kv.put("project:list", JSON.stringify(projectList));
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Project with ID ${projectId} and its associated todos have been deleted.`,
+            },
+          ],
+        };
+      }
+    );
+
+    this.server.tool(
+      "create_todo",
       "Adds a new todo item to a specified project.",
       {
         projectId: z
@@ -178,6 +217,124 @@ export class MyMCP extends McpAgent {
 
         return {
           content: [{ type: "text", text: JSON.stringify(newTodo, null, 2) }],
+        };
+      }
+    );
+
+    this.server.tool(
+      "update_todo",
+      "Updates the status or details of a todo item.",
+      {
+        todoId: z.string().describe("ID of the todo item to update"),
+        title: z.string().optional().describe("Updated title of the todo item"),
+        description: z
+          .string()
+          .optional()
+          .describe("Updated description of the todo item"),
+        status: z
+          .enum(["pending", "in-progress", "completed"])
+          .optional()
+          .describe("Updated status of the todo item"),
+        priority: z
+          .enum(["low", "medium", "high"])
+          .optional()
+          .describe("Updated priority of the todo item"),
+      },
+      async ({ todoId, title, description, status, priority }) => {
+        const todoData = await this.kv.get(`todo:${todoId}`);
+        if (!todoData) {
+          throw new Error(`Todo with ID ${todoId} does not exist.`);
+        }
+
+        const todo: Todo = JSON.parse(todoData);
+
+        if (title !== undefined) todo.title = title;
+        if (description !== undefined) todo.description = description;
+        if (status !== undefined) todo.status = status;
+        if (priority !== undefined) todo.priority = priority;
+        todo.updatedAt = new Date().toISOString();
+
+        await this.kv.put(`todo:${todoId}`, JSON.stringify(todo));
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(todo, null, 2) }],
+        };
+      }
+    );
+
+    this.server.tool(
+      "get_todo",
+      "Retrieves details of a specific todo item by ID.",
+      {
+        todoId: z.string().describe("ID of the todo item to retrieve"),
+      },
+      async ({ todoId }) => {
+        const todoData = await this.kv.get(`todo:${todoId}`);
+        if (!todoData) {
+          throw new Error(`Todo with ID ${todoId} does not exist.`);
+        }
+
+        const todo: Todo = JSON.parse(todoData);
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(todo, null, 2) }],
+        };
+      }
+    )
+
+    this.server.tool(
+      "delete_todo",
+      "Deletes a todo item from a project.",
+      {
+        todoId: z.string().describe("ID of the todo item to delete"),
+      },
+      async ({ todoId }) => {
+        const todoData = await this.kv.get(`todo:${todoId}`);
+        if (!todoData) {
+          throw new Error(`Todo with ID ${todoId} does not exist.`);
+        }
+        
+        const todo: Todo = JSON.parse(todoData);
+        await this.kv.delete(`todo:${todoId}`);
+
+        let todoList = await this.getTodoList(todo.projectId);
+        todoList = todoList.filter((id) => id !== todoId);
+        await this.kv.put(
+          `project:${todo.projectId}:todos`,
+          JSON.stringify(todoList)
+        );
+
+        return {
+          content: [
+            { type: "text", text: `Todo with ID ${todoId} has been deleted.` },
+          ],
+        };
+      }
+    );
+    
+    this.server.tool(
+      "list_todos",
+      "Lists all todo items for a specific project.",
+      {
+        projectId: z.string().describe("ID of the project to list todos for"),
+        status: z
+          .enum(["pending", "in-progress", "completed"])
+          .optional()
+          .describe("Filter todos by status"),
+      },
+      async ({ projectId, status }) => {
+        const projectData = await this.kv.get(`project:${projectId}`);
+        if (!projectData) {
+          throw new Error(`Project with ID ${projectId} does not exist.`);
+        }
+
+        let todos = await this.getTodosByProject(projectId);
+        if (status) {
+          todos = todos.filter((todo) => todo.status === status);
+        }
+
+        return {
+          content: [{ type: "text", text: JSON.stringify(todos, null, 2) }],
         };
       }
     );
