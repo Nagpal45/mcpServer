@@ -42,7 +42,13 @@
 	"kv_namespaces": [
 		{
 			"binding": "OAUTH_KV",
-			"id": "<Add-KV-ID>"
+			"id": "19a478fcbf8f43d490ef112280d12192",
+			"remote": true
+		},
+		{
+			"binding": "PROJECT_PLANNER_STORE_WITH_AUTH",
+			"id": "0979295cd1ac4363921f965a07aa6c89",
+			"remote": true
 		}
 	],
 	"ai": {
