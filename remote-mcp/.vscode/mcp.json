@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "project-planner-mcp": {
+        "command": "mcp-remote",
+        "args": ["https://remote-mcp.vaibhavnagpal-dev.workers.dev/sse"],
+    }
+  }
+}
